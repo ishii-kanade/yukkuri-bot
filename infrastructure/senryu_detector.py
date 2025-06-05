@@ -38,9 +38,37 @@ def is_poetic_phrase(tokens: List[Tuple[str, str, int, str]]) -> bool:
 
     return True
 
+def score_senryu(first, second, third) -> float:
+    score = 0.0
 
+    # 品詞の連なり評価（流れが自然か）
+    def is_smooth_transition(a, b) -> bool:
+        _, _, _, pos_a = a[-1]
+        _, _, _, pos_b = b[0]
+        smooth_pairs = {
+            ("名詞", "助詞"),
+            ("助詞", "動詞"),
+            ("動詞", "名詞"),
+            ("形容詞", "名詞"),
+        }
+        return (pos_a, pos_b) in smooth_pairs
 
-def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
+    if is_smooth_transition(first, second):
+        score += 1.0
+    if is_smooth_transition(second, third):
+        score += 1.0
+
+    # 情感のある品詞が多いほど加点（感動詞・形容詞・副詞など）
+    emotive_pos = {"感動詞", "形容詞", "副詞", "形容動詞"}
+    for phrase in [first, second, third]:
+        score += sum(1 for _, _, _, pos in phrase if pos in emotive_pos) * 0.3
+
+    # 句の長さが適切に分散してるほど加点（例：短・長・短）
+    score += len(first) * 0.1 + len(second) * 0.1 + len(third) * 0.1
+
+    return score
+
+def extract_best_senryu(text: str, debug: bool = True) -> List[str]:
     words = [(w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1) for w in tagger(text)]
     candidates = {5: [], 7: []}
 
@@ -60,16 +88,31 @@ def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
         print("🎲 候補句（5モーラ）:", [ ''.join(w for w, *_ in p) for p in candidates[5] ])
         print("🎲 候補句（7モーラ）:", [ ''.join(w for w, *_ in p) for p in candidates[7] ])
 
-    if len(candidates[5]) < 2 or not candidates[7]:
+    combos_with_score = []
+    for i in range(len(candidates[5])):
+        for j in range(len(candidates[7])):
+            for k in range(len(candidates[5])):
+                if i == k:
+                    continue
+                first = candidates[5][i]
+                second = candidates[7][j]
+                third = candidates[5][k]
+
+                score = score_senryu(first, second, third)
+                senryu_text = [
+                    ''.join(w for w, *_ in first),
+                    ''.join(w for w, *_ in second),
+                    ''.join(w for w, *_ in third),
+                ]
+                combos_with_score.append((score, senryu_text))
+
+    if not combos_with_score:
         if debug:
-            print("❌ 十分な候補がありません")
+            print("❌ 川柳を構成できませんでした")
         return []
 
-    first, third = random.sample(candidates[5], 2)
-    second = random.choice(candidates[7])
+    # スコア順に降順ソート
+    combos_with_score.sort(reverse=True, key=lambda x: x[0])
 
-    return [
-        ''.join(w for w, *_ in first),
-        ''.join(w for w, *_ in second),
-        ''.join(w for w, *_ in third),
-    ]
+    # 最もスコアの高いものを返す
+    return combos_with_score[0][1]
