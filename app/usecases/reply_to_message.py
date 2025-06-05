@@ -1,13 +1,16 @@
 # app/usecases/reply_to_message.py
 from infrastructure.senryu_detector import extract_random_senryu
-
 import discord
 
-TARGET_CHANNEL_ID = 767778360133812234  # ← 書き換えてね
+# 複数のチャンネルIDをリストまたは集合で指定
+TARGET_CHANNEL_IDS = {
+    767778360133812234,
+    965883155544428656,
+}
 
 class ReplyToMessageUseCase:
     async def execute(self, message: discord.Message):
-        if message.channel.id != TARGET_CHANNEL_ID:
+        if message.channel.id not in TARGET_CHANNEL_IDS:
             return
 
         content = message.content.strip()
