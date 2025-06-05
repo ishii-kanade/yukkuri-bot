@@ -3,7 +3,7 @@ from infrastructure.senryu_detector import extract_random_senryu
 
 import discord
 
-TARGET_CHANNEL_ID = 965883155544428656  # ← 書き換えてね
+TARGET_CHANNEL_ID = 767778360133812234  # ← 書き換えてね
 
 class ReplyToMessageUseCase:
     async def execute(self, message: discord.Message):
