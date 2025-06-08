@@ -6,6 +6,7 @@ import discord
 TARGET_CHANNEL_IDS = {
     767778360133812234,
     965883155544428656,
+    713763994690650193
 }
 
 class ReplyToMessageUseCase:
