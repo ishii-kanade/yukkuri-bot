@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import fugashi
+import re
 
 tagger = fugashi.Tagger()
 
@@ -38,8 +39,26 @@ def score_senryu(first: List[Token], second: List[Token], third: List[Token]) ->
 
 
 def extract_best_sequential_senryu(text: str, debug: bool = True) -> List[str]:
+
+    def is_japanese_token(token: Token) -> bool:
+        surface, reading, _, pos = token
+
+        # 弾きたい品詞
+        banned_pos = {"記号", "補助記号", "空白"}
+
+        if pos in banned_pos:
+            return False
+        if re.fullmatch(r'[a-zA-Z0-9]+', surface):
+            return False
+        if re.fullmatch(r'\s+', surface):
+            return False
+        return True
+
+
     words = [(w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
              for w in tagger(text)]
+
+    words = [token for token in words if is_japanese_token(token)]
 
     def find_phrases(mora_target: int, start_idx: int) -> List[Tuple[int, List[Token]]]:
         results = []
