@@ -130,8 +130,14 @@ def extract_best_sequential_senryu(text: str, debug: bool = True) -> List[str]:
     best_score = float('-inf')
     best_combo = []
 
-    for i, first in find_phrases(5, 0):
-        for j, second in find_phrases(7, i):
+    # 候補を保存してあとで表示
+    candidates_5 = find_phrases(5, 0)
+    candidates_7_all = []
+
+    for i, first in candidates_5:
+        candidates_7 = find_phrases(7, i)
+        candidates_7_all.extend(candidates_7)
+        for j, second in candidates_7:
             for k, third in find_phrases(5, j):
                 score = score_senryu(first, second, third)
                 if score > best_score:
@@ -146,12 +152,30 @@ def extract_best_sequential_senryu(text: str, debug: bool = True) -> List[str]:
     def phrase_text(phrase: List[Tuple[str, str, int, str]]) -> str:
         return ''.join(w for w, *_ in phrase)
 
+    def print_phrase_detail(title: str, phrase_list: List[List[Tuple[str, str, int, str]]]):
+        print(f"\n📋 {title}（{len(phrase_list)}件）:")
+        for phrase in phrase_list:
+            text = phrase_text(phrase)
+            mora = sum(m for _, _, m, _ in phrase)
+            print(f"- {text}（{mora}モーラ）")
+            for surface, reading, mora, pos in phrase:
+                print(f"    ・{surface}（{reading}）: {mora}モーラ, 品詞: {pos}")
+
     result = [phrase_text(p) for p in best_combo]
 
     if debug:
         print("🏆 スコア最高の川柳:")
-        for line in result:
-            print(line)
-        print(f"🎯 Score: {best_score}")
+        for i, phrase in enumerate(best_combo):
+            line = phrase_text(phrase)
+            mora = sum(m for _, _, m, _ in phrase)
+            print(f"\n句{i+1}: {line}（{mora}モーラ）")
+            for surface, reading, mora, pos in phrase:
+                print(f"  - {surface}（{reading}）: {mora}モーラ, 品詞: {pos}")
+
+        print(f"\n🎯 Score: {best_score}")
+
+        # 候補も表示
+        print_phrase_detail("5モーラ候補句", [p for _, p in candidates_5])
+        print_phrase_detail("7モーラ候補句", [p for _, p in candidates_7_all])
 
     return result
