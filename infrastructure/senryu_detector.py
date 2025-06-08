@@ -16,6 +16,40 @@ def is_poetic_phrase(tokens: List[Tuple[str, str, int, str]]) -> bool:
     core_pos = {"名詞", "動詞", "形容詞", "副詞", "感動詞", "形容動詞"}
     return any(pos in core_pos for pos in pos_list)
 
+def score_phrase(phrase: List[Tuple[str, str, int, str]]) -> float:
+    pos_list = [t[3] for t in phrase]
+    score = 0.0
+
+    # 情報量のある品詞に加点
+    core_pos = {"名詞", "動詞", "形容詞", "副詞", "形容動詞", "感動詞"}
+    score += sum(1 for pos in pos_list if pos in core_pos) * 1.0
+
+    # 助詞や補助記号ばかりなら減点
+    filler_pos = {"助詞", "助動詞", "記号", "補助記号"}
+    if all(pos in filler_pos for pos in pos_list):
+        score -= 2.0
+
+    return score
+
+def score_senryu(first, second, third) -> float:
+    score = score_phrase(first) + score_phrase(second) + score_phrase(third)
+
+    def transition_score(a, b):
+        _, _, _, pos_a = a[-1]
+        _, _, _, pos_b = b[0]
+        good_transitions = {
+            ("名詞", "助詞"),
+            ("助詞", "動詞"),
+            ("形容詞", "名詞"),
+            ("動詞", "名詞"),
+        }
+        return 1.0 if (pos_a, pos_b) in good_transitions else 0.0
+
+    score += transition_score(first, second)
+    score += transition_score(second, third)
+
+    return score
+
 def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
     words = [
         (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
@@ -72,3 +106,37 @@ def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
         phrase_text(second),
         phrase_text(third),
     ]
+
+def extract_best_senryu(text: str, debug: bool = True, max_trials: int = 30) -> List[str]:
+    best_score = float('-inf')
+    best_result = []
+
+    for _ in range(max_trials):
+        result = extract_random_senryu(text, debug=False)
+        if not result:
+            continue
+
+        phrases = []
+        for line in result:
+            tokens = [
+                (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
+                for w in tagger(line)
+            ]
+            phrases.append(tokens)
+
+        if len(phrases) == 3:
+            score = score_senryu(*phrases)
+            if score > best_score:
+                best_score = score
+                best_result = result
+
+    if debug:
+        if best_result:
+            print("🔥 Best川柳:")
+            for line in best_result:
+                print(line)
+            print(f"🎯 Score: {best_score}")
+        else:
+            print("❌ ベスト川柳を抽出できませんでした。")
+
+    return best_result
