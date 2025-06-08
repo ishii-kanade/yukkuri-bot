@@ -50,7 +50,7 @@ def score_senryu(first, second, third) -> float:
 
     return score
 
-def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
+def extract_sequential_senryu(text: str, debug: bool = True) -> List[str]:
     words = [
         (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
         for w in tagger(text)
@@ -76,8 +76,8 @@ def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
     candidates_7 = find_phrases(7)
 
     if debug:
-        print("🎲 候補句（5モーラ）:", [''.join(w for w, *_ in p) for p in candidates_5])
-        print("🎲 候補句（7モーラ）:", [''.join(w for w, *_ in p) for p in candidates_7])
+        print("📋 候補句（5モーラ）:", [''.join(w for w, *_ in p) for p in candidates_5])
+        print("📋 候補句（7モーラ）:", [''.join(w for w, *_ in p) for p in candidates_7])
 
     if len(candidates_5) < 2 or not candidates_7:
         return []
@@ -87,25 +87,24 @@ def extract_random_senryu(text: str, debug: bool = True) -> List[str]:
 
     used_texts = set()
 
-    first = random.choice(candidates_5)
+    first = candidates_5[0]
     used_texts.add(phrase_text(first))
 
-    candidates_7_filtered = [p for p in candidates_7 if phrase_text(p) not in used_texts]
-    if not candidates_7_filtered:
+    second = next((p for p in candidates_7 if phrase_text(p) not in used_texts), None)
+    if not second:
         return []
-    second = random.choice(candidates_7_filtered)
     used_texts.add(phrase_text(second))
 
-    candidates_5_filtered = [p for p in candidates_5 if phrase_text(p) not in used_texts]
-    if not candidates_5_filtered:
+    third = next((p for p in candidates_5 if phrase_text(p) not in used_texts), None)
+    if not third:
         return []
-    third = random.choice(candidates_5_filtered)
 
     return [
         phrase_text(first),
         phrase_text(second),
         phrase_text(third),
     ]
+
 
 def extract_best_senryu(text: str, debug: bool = True, max_trials: int = 30) -> List[str]:
     best_score = float('-inf')
@@ -140,3 +139,85 @@ def extract_best_senryu(text: str, debug: bool = True, max_trials: int = 30) -> 
             print("❌ ベスト川柳を抽出できませんでした。")
 
     return best_result
+
+def extract_ordered_senryu(text: str, debug: bool = True) -> List[str]:
+    words = [
+        (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
+        for w in tagger(text)
+    ]
+
+    print(words)
+
+    def find_phrase(start_idx: int, mora_target: int) -> Tuple[int, List[Tuple[str, str, int, str]]]:
+        total = 0
+        phrase = []
+        for i in range(start_idx, len(words)):
+            surface, reading, mora, pos = words[i]
+            total += mora
+            phrase.append((surface, reading, mora, pos))
+            if total > mora_target:
+                return -1, []
+            if total == mora_target and is_poetic_phrase(phrase):
+                return i + 1, phrase
+        return -1, []
+
+    idx, first = find_phrase(0, 5)
+    if idx == -1:
+        if debug: print("❌ 最初の5モーラ句が見つかりませんでした")
+        return []
+
+    idx, second = find_phrase(idx, 7)
+    if idx == -1:
+        if debug: print("❌ 次の7モーラ句が見つかりませんでした")
+        return []
+
+    idx, third = find_phrase(idx, 5)
+    if idx == -1:
+        if debug: print("❌ 最後の5モーラ句が見つかりませんでした")
+        return []
+
+    def phrase_text(phrase: List[Tuple[str, str, int, str]]) -> str:
+        return ''.join(w for w, *_ in phrase)
+
+    result = [phrase_text(first), phrase_text(second), phrase_text(third)]
+
+    if debug:
+        print("✅ 順番通りに抽出された川柳:")
+        for line in result:
+            print(line)
+        print(f"🎯 Score: {score_senryu(first, second, third)}")
+
+    return result
+
+def extract_ordered_senryu_simple(text: str) -> List[str]:
+    words = [
+        (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface))
+        for w in tagger(text)
+    ]
+
+    def cut_phrase(start: int, target_mora: int) -> Tuple[int, str]:
+        total = 0
+        phrase = ""
+        for i in range(start, len(words)):
+            surface, _, mora = words[i]
+            total += mora
+            phrase += surface
+            if total == target_mora:
+                return i + 1, phrase
+            if total > target_mora:
+                break
+        return -1, ""
+
+    idx, first = cut_phrase(0, 5)
+    if idx == -1:
+        return []
+
+    idx, second = cut_phrase(idx, 7)
+    if idx == -1:
+        return []
+
+    idx, third = cut_phrase(idx, 5)
+    if idx == -1:
+        return []
+
+    return [first, second, third]
