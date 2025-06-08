@@ -1,5 +1,5 @@
 # app/usecases/reply_to_message.py
-from infrastructure.senryu_detector import extract_sequential_senryu
+from infrastructure.senryu_detector import extract_best_sequential_senryu
 import discord
 
 # 複数のチャンネルIDをリストまたは集合で指定
@@ -16,7 +16,7 @@ class ReplyToMessageUseCase:
         content = message.content.strip()
 
         # 川柳チェック
-        senryu = extract_sequential_senryu(content, True)
+        senryu = extract_best_sequential_senryu(content, True)
         if senryu:
             formatted = "📜 川柳を検知しました\n" + "\n".join(senryu)
             await message.channel.send(formatted)

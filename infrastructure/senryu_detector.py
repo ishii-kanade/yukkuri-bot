@@ -105,119 +105,53 @@ def extract_sequential_senryu(text: str, debug: bool = True) -> List[str]:
         phrase_text(third),
     ]
 
-
-def extract_best_senryu(text: str, debug: bool = True, max_trials: int = 30) -> List[str]:
-    best_score = float('-inf')
-    best_result = []
-
-    for _ in range(max_trials):
-        result = extract_random_senryu(text, debug=False)
-        if not result:
-            continue
-
-        phrases = []
-        for line in result:
-            tokens = [
-                (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
-                for w in tagger(line)
-            ]
-            phrases.append(tokens)
-
-        if len(phrases) == 3:
-            score = score_senryu(*phrases)
-            if score > best_score:
-                best_score = score
-                best_result = result
-
-    if debug:
-        if best_result:
-            print("🔥 Best川柳:")
-            for line in best_result:
-                print(line)
-            print(f"🎯 Score: {best_score}")
-        else:
-            print("❌ ベスト川柳を抽出できませんでした。")
-
-    return best_result
-
-def extract_ordered_senryu(text: str, debug: bool = True) -> List[str]:
+def extract_best_sequential_senryu(text: str, debug: bool = True) -> List[str]:
     words = [
         (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface), w.feature.pos1)
         for w in tagger(text)
     ]
 
-    print(words)
-
-    def find_phrase(start_idx: int, mora_target: int) -> Tuple[int, List[Tuple[str, str, int, str]]]:
-        total = 0
-        phrase = []
+    def find_phrases(mora_target: int, start_idx: int) -> List[Tuple[int, List[Tuple[str, str, int, str]]]]:
+        results = []
         for i in range(start_idx, len(words)):
-            surface, reading, mora, pos = words[i]
-            total += mora
-            phrase.append((surface, reading, mora, pos))
-            if total > mora_target:
-                return -1, []
-            if total == mora_target and is_poetic_phrase(phrase):
-                return i + 1, phrase
-        return -1, []
+            total = 0
+            phrase = []
+            for j in range(i, len(words)):
+                surface, reading, mora, pos = words[j]
+                total += mora
+                if total > mora_target:
+                    break
+                phrase.append((surface, reading, mora, pos))
+                if total == mora_target and is_poetic_phrase(phrase):
+                    results.append((j + 1, phrase))
+                    break
+        return results
 
-    idx, first = find_phrase(0, 5)
-    if idx == -1:
-        if debug: print("❌ 最初の5モーラ句が見つかりませんでした")
-        return []
+    best_score = float('-inf')
+    best_combo = []
 
-    idx, second = find_phrase(idx, 7)
-    if idx == -1:
-        if debug: print("❌ 次の7モーラ句が見つかりませんでした")
-        return []
+    for i, first in find_phrases(5, 0):
+        for j, second in find_phrases(7, i):
+            for k, third in find_phrases(5, j):
+                score = score_senryu(first, second, third)
+                if score > best_score:
+                    best_score = score
+                    best_combo = [first, second, third]
 
-    idx, third = find_phrase(idx, 5)
-    if idx == -1:
-        if debug: print("❌ 最後の5モーラ句が見つかりませんでした")
+    if not best_combo:
+        if debug:
+            print("❌ 川柳構成に失敗しました")
         return []
 
     def phrase_text(phrase: List[Tuple[str, str, int, str]]) -> str:
         return ''.join(w for w, *_ in phrase)
 
-    result = [phrase_text(first), phrase_text(second), phrase_text(third)]
+    result = [phrase_text(p) for p in best_combo]
 
     if debug:
-        print("✅ 順番通りに抽出された川柳:")
+        print("🏆 スコア最高の川柳:")
         for line in result:
             print(line)
-        print(f"🎯 Score: {score_senryu(first, second, third)}")
+        print(f"🎯 Score: {best_score}")
 
     return result
-
-def extract_ordered_senryu_simple(text: str) -> List[str]:
-    words = [
-        (w.surface, w.feature.kana or w.surface, len(w.feature.kana or w.surface))
-        for w in tagger(text)
-    ]
-
-    def cut_phrase(start: int, target_mora: int) -> Tuple[int, str]:
-        total = 0
-        phrase = ""
-        for i in range(start, len(words)):
-            surface, _, mora = words[i]
-            total += mora
-            phrase += surface
-            if total == target_mora:
-                return i + 1, phrase
-            if total > target_mora:
-                break
-        return -1, ""
-
-    idx, first = cut_phrase(0, 5)
-    if idx == -1:
-        return []
-
-    idx, second = cut_phrase(idx, 7)
-    if idx == -1:
-        return []
-
-    idx, third = cut_phrase(idx, 5)
-    if idx == -1:
-        return []
-
-    return [first, second, third]
